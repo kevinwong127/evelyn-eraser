@@ -1,0 +1,10 @@
+project_id = "ttybvoyfaxvliebzutla"
+
+[functions.erase-handwriting]
+verify_jwt = false
+
+[functions.extract-text]
+verify_jwt = false
+
+[functions.check-homework]
+verify_jwt = false
