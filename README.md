@@ -63,14 +63,11 @@ git push -u origin main
 
 ## GitHub Pages 部署
 
-1. 在 repository 的 **Settings → Secrets and variables → Actions → Secrets**，新增：
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-2. 進入 **Settings → Pages**，把 **Source** 設為 **GitHub Actions**。
-3. 推送到 `main` 後，`.github/workflows/deploy.yml` 會自動建置及部署。
-4. 網址通常是 `https://YOUR_NAME.github.io/YOUR_REPO/`，以 GitHub Pages 顯示為準。
+目前部署使用 `gh-pages` 分支：先在本機透過 `.env` 執行 `npm run build`，再將 `dist/` 的靜態內容發布到該分支。這個方法不需要 GitHub Actions 或 workflow 權限。
 
-GitHub Actions 只會在 build 時讀取上述公開前端設定。伺服器私密 key 絕對不能加入前端 workflow。
+在 **Settings → Pages** 應選擇 **Deploy from branch**，分支為 `gh-pages`，目錄為 `/ (root)`。網址通常是 `https://YOUR_NAME.github.io/YOUR_REPO/`，以 GitHub Pages 顯示為準。
+
+只有 Supabase 的公開前端設定會在建置時放入靜態網站。伺服器私密 key 絕對不能加入前端程式碼或 Pages 分支。
 
 ## Supabase 後端
 
