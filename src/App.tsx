@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 
 const Auth = lazy(() => import("./pages/Auth"));
 const QuickStart = lazy(() => import("./pages/QuickStart"));
+const Dictation = lazy(() => import("./pages/Dictation"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const HomeworkDashboard = lazy(() => import("./pages/HomeworkDashboard"));
 const HomeworkCheck = lazy(() => import("./pages/HomeworkCheck"));
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/quick-start" element={<QuickStart />} />
+              <Route path="/dictation" element={<Dictation />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/homework" element={<HomeworkDashboard />} />
               <Route path="/homework/check" element={<HomeworkCheck />} />

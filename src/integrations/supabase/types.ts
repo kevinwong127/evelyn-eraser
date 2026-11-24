@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      dictation_settings: {
+        Row: {
+          created_at: string
+          dictation_language: string
+          id: string
+          speed: number
+          updated_at: string
+          user_id: string
+          voice_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          dictation_language?: string
+          id?: string
+          speed?: number
+          updated_at?: string
+          user_id: string
+          voice_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          dictation_language?: string
+          id?: string
+          speed?: number
+          updated_at?: string
+          user_id?: string
+          voice_name?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

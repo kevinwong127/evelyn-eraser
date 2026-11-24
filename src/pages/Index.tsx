@@ -1,4 +1,4 @@
-import { ArrowRight, Eraser, BookOpen, Volume2, ExternalLink } from "lucide-react";
+import { ArrowRight, Eraser, BookOpen, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -93,9 +93,9 @@ const Index = () => {
               <Button
                 size="lg"
                 className="rounded-full font-display text-base font-bold bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => window.open("https://text-whisper-pal.lovable.app", "_blank")}
+                onClick={() => navigate("/dictation")}
               >
-                開始默書 <ExternalLink className="ml-1 h-4 w-4" />
+                開始默書 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
               <p className="text-xs text-muted-foreground mt-2">（試用中）</p>
             </div>

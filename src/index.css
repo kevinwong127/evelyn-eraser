@@ -113,4 +113,24 @@
   .hw-yellow {
     @apply bg-success/15 text-foreground px-1.5 py-0.5 rounded-md font-bold inline-block mx-0.5 border border-success/30 leading-relaxed;
   }
+
+  .dictation-theme {
+    --background: 30 50% 98%;
+    --foreground: 20 20% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 20% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 20% 20%;
+    --primary: 16 85% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 174 50% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 30 30% 94%;
+    --muted-foreground: 20 10% 50%;
+    --accent: 45 95% 65%;
+    --accent-foreground: 20 20% 20%;
+    --border: 30 20% 88%;
+    --input: 30 20% 88%;
+    --ring: 16 85% 60%;
+  }
 }
