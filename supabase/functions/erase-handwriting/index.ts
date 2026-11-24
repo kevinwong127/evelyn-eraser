@@ -34,17 +34,25 @@ RULE 1 — ERASE ALL HANDWRITING (ALL INK TYPES):
 - Replace EVERY erased area with pure white (#FFFFFF) pixels.
 - Be aggressive: if in doubt whether a mark is handwritten or printed, check stroke regularity. Handwriting has irregular pressure, wobble, and inconsistent spacing. Printed text is perfectly uniform.
 
-RULE 2 — PIXEL-PERFECT PRINTED CONTENT PRESERVATION:
+RULE 2 — RESTORE EVERY ANSWER CIRCLE AND FORM FIELD:
+- Every filled, blackened, shaded, ticked, crossed, circled or marked multiple-choice bubble is HANDWRITING, even when it looks like a solid printed black dot.
+- Remove the fill COMPLETELY and restore each bubble to a clean HOLLOW circle with the original outline, size and position.
+- Check EVERY option (A, B, C, D, etc.) in EVERY question. Never leave a selected answer bubble behind.
+- Also clear names, class names, dates, scores, teacher marks and all other handwritten entries in form fields.
+
+RULE 3 — PIXEL-PERFECT PRINTED CONTENT PRESERVATION:
 - Every printed character, word, number, line, border, box, and image MUST remain EXACTLY as-is.
 - DO NOT re-render, re-type, or reconstruct ANY printed text.
 - Printed text is identified by: perfect uniformity, consistent font weight, machine-precise spacing and alignment.
 
-RULE 3 — PRESERVE ORIGINAL DIMENSIONS:
+RULE 4 — PRESERVE ORIGINAL DIMENSIONS:
 - Output image MUST have the EXACT same width and height as input. No crop, resize, or scale.
 
-RULE 4 — CLEAN WHITE BACKGROUND:
+RULE 5 — CLEAN WHITE BACKGROUND AND FINAL INSPECTION:
 - Make ALL paper background areas uniformly pure white (#FFFFFF).
 - Remove shadows, lighting gradients, page curl artifacts, and paper texture.
+- Before returning, inspect the entire page again, question by question and field by field.
+- If any handwritten stroke, selected bubble, filled circle, name, score or correction remains, erase it before output. The task is incomplete while any of these remain.
 
 Output ONLY the edited image. No text response.`,
           },
