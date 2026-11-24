@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { validateRequest } from "../_shared/validate-request.ts";
+import { GeminiError, GEMINI_IMAGE_MODEL, extractGeminiImage, generateGeminiContent, imagePart } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,69 +107,19 @@ ${isColor ? `RULES:
 Output ONLY the processed image. No text response.`;
 }
 
-async function callAI(apiKey: string, prompt: string, mimeType: string, pureBase64: string) {
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-pro-image-preview",
-      modalities: ["image", "text"],
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${pureBase64}` } },
-          ],
-        },
-      ],
-    }),
+async function callAI(_apiKey: string, prompt: string, mimeType: string, pureBase64: string) {
+  return generateGeminiContent({
+    model: GEMINI_IMAGE_MODEL,
+    contents: [{
+      role: "user",
+      parts: [{ text: prompt }, imagePart(mimeType, pureBase64)],
+    }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
   });
-
-  if (!response.ok) {
-    if (response.status === 429) throw { status: 429, message: "Rate limit exceeded. Please try again in a moment." };
-    if (response.status === 402) throw { status: 402, message: "Usage limit reached. Please add credits." };
-    if (response.status === 403) {
-      let msg = "AI 使用上限已到，請工作區管理員提高 AI 額度上限。";
-      try { const j = await response.json(); if (j?.message) msg = j.message; else if (j?.error?.message) msg = j.error.message; } catch { /* ignore */ }
-      throw { status: 403, message: msg };
-    }
-    throw new Error(`AI error: ${response.status}`);
-  }
-
-  return await response.json();
 }
 
 function extractImageFromResult(result: any): string | null {
-  const choice = result.choices?.[0];
-  const content = choice?.message?.content;
-  const images = choice?.message?.images;
-
-  if (Array.isArray(images) && images.length > 0) {
-    const imgUrl = images[0]?.image_url?.url;
-    if (imgUrl) return imgUrl;
-  }
-
-  if (typeof content === "string") {
-    const base64Match = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
-    if (base64Match) return base64Match[0];
-  }
-
-  if (Array.isArray(content)) {
-    for (const part of content) {
-      if (part.type === "image_url" && part.image_url?.url) return part.image_url.url;
-      if (part.inline_data?.data) return `data:${part.inline_data.mime_type || "image/png"};base64,${part.inline_data.data}`;
-    }
-  }
-
-  const fullJson = JSON.stringify(result);
-  const deepMatch = fullJson.match(/"url":"(data:image\/[^"]+)"/);
-  if (deepMatch) return deepMatch[1];
-
-  return null;
+  return extractGeminiImage(result);
 }
 
 /** Parse a data-URI into { mimeType, pureBase64 } */
@@ -193,21 +144,21 @@ serve(async (req) => {
     const isColor = extraFields?.colorMode === "color";
     const highQuality = extraFields?.highQuality === true;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     let optimizedImageBase64: string | null = null;
 
     if (highQuality) {
       // Two-pass mode: geometry first, then cleanup
       const pass1Prompt = buildGeometryOnlyPrompt();
-      const pass1Result = await callAI(LOVABLE_API_KEY, pass1Prompt, mimeType, pureBase64);
+      const pass1Result = await callAI(GEMINI_API_KEY, pass1Prompt, mimeType, pureBase64);
       const geometryImage = extractImageFromResult(pass1Result);
 
       if (geometryImage) {
         const { mimeType: m2, pureBase64: b2 } = parseDataUri(geometryImage);
         const pass2Prompt = buildCleanupPrompt(isColor);
-        const pass2Result = await callAI(LOVABLE_API_KEY, pass2Prompt, m2, b2);
+        const pass2Result = await callAI(GEMINI_API_KEY, pass2Prompt, m2, b2);
         optimizedImageBase64 = extractImageFromResult(pass2Result);
         // Fallback to geometry-only result if cleanup fails
         if (!optimizedImageBase64) optimizedImageBase64 = geometryImage;
@@ -215,7 +166,7 @@ serve(async (req) => {
     } else {
       // Single-pass mode with enhanced prompt
       const prompt = buildGeometryPrompt(isColor);
-      const result = await callAI(LOVABLE_API_KEY, prompt, mimeType, pureBase64);
+      const result = await callAI(GEMINI_API_KEY, prompt, mimeType, pureBase64);
       optimizedImageBase64 = extractImageFromResult(result);
     }
 
@@ -229,15 +180,10 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e: any) {
-    if (e.status === 429 || e.status === 402 || e.status === 403) {
-      return new Response(
-        JSON.stringify({ error: e.message }),
-        { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const status = e instanceof GeminiError ? e.status : 500;
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

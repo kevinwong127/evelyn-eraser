@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GeminiError, GEMINI_TEXT_MODEL, extractGeminiText, generateGeminiContent } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,9 +134,6 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const language = lang === "en" ? "English" : "繁體中文";
     const hasUserAnswer = user_answer && user_answer.trim();
 
@@ -219,44 +217,23 @@ Be honest about your confidence. If the image is blurry or handwriting is hard t
       });
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3.1-pro-preview",
-        temperature: 0,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-      }),
+    const geminiParts = userContent.map((part) => {
+      if (part.type === "text") return { text: part.text };
+      return {
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: String(imageBase64).replace(/^data:image\/[^;]+;base64,/, ""),
+        },
+      };
     });
 
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiResponse.status === 403) {
-        let msg = "AI 使用上限已到，請工作區管理員提高 AI 額度上限。";
-        try { const j = await aiResponse.json(); if (j?.message) msg = j.message; else if (j?.error?.message) msg = j.error.message; } catch { /* ignore */ }
-        return new Response(JSON.stringify({ error: msg }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      console.error("AI gateway error:", aiResponse.status);
-      throw new Error("AI gateway error");
-    }
-
-    const aiData = await aiResponse.json();
-    const rawContent = aiData.choices?.[0]?.message?.content || "";
+    const aiData = await generateGeminiContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: [{ role: "user", parts: geminiParts }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: { temperature: 0, responseMimeType: "application/json" },
+    });
+    const rawContent = extractGeminiText(aiData);
 
     let parsed;
     try {
@@ -322,9 +299,10 @@ Be honest about your confidence. If the image is blurry or handwriting is hard t
     });
   } catch (e) {
     console.error("check-homework error:", e);
+    const status = e instanceof GeminiError ? e.status : 500;
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

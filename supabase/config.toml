@@ -1,4 +1,5 @@
-project_id = "ttybvoyfaxvliebzutla"
+# Replace this with your own Supabase project reference before deploying.
+project_id = "your-supabase-project-ref"
 
 [functions.erase-handwriting]
 verify_jwt = false
@@ -7,4 +8,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.check-homework]
+verify_jwt = false
+
+[functions.rebuild-worksheet]
+verify_jwt = false
+
+[functions.scan-optimize]
+verify_jwt = false
+
+[functions.elevenlabs-tts]
 verify_jwt = false

@@ -1,22 +1,23 @@
 # WorkSheet Eraser
 
-這是從 Lovable 完整 Codebase 遷移的 React + TypeScript 專案，包含原始頁面、Supabase Edge Functions、資料庫 migration，以及 GitHub Pages 部署設定。前端可直接在本機或 GitHub Pages 執行，不需要在 Lovable 編輯或發布網站。
+獨立 React + TypeScript Web App，包含工作表清除、功課批改、默書練習、Supabase Edge Functions、資料庫 migration 和 GitHub Pages 靜態部署。
 
 ## 功能
 
-- WorkSheet Eraser：圖片／PDF 批量上傳、AI 清除手寫、文字提取、掃描優化、局部修正及匯出。
-- 功課小幫手 HK：相片或手動輸入、AI 批改、提示模式、歷史記錄及家長報告。
-- 默書小助手：已整合為 `/#/dictation` 內部頁面，支援圖片 OCR、粵語／普通話／英文、語速、分段及播放控制。OCR 和目前使用的語音均在瀏覽器執行；未登入設定存於本機，登入設定可存於 Supabase。
+- **WorkSheet Eraser**：圖片／PDF 批量上傳、清除手寫、文字提取、掃描優化、局部修正及匯出。
+- **功課小幫手 HK**：相片或手動輸入、批改、提示模式、歷史記錄及家長報告。
+- **默書小助手**：`/#/dictation`，圖片 OCR、粵語／普通話／英文、語速、分段及播放控制。OCR 和語音在瀏覽器執行，不需要 AI API。
 - Supabase 電郵登入、註冊及 Google OAuth。
 
-## 服務依賴
+## 服務與費用
 
-這個 repository 包含應用程式碼，但不包含資料庫內的記錄、Storage 檔案或私密密钥。
+- **前端**：GitHub Pages，使用公開 repository 時免費。
+- **資料庫、登入和 Edge Functions**：使用你自己的 Supabase project，按 Supabase 計劃及用量計算。
+- **文字 AI（功課批改和 OCR）**：直接呼叫 Gemini API，預設 `gemini-2.5-flash`。
+- **圖片 AI（清除、掃描和重建）**：直接呼叫 Gemini API，預設 `gemini-3-pro-image-preview`。圖像模型需要啟用 Google Cloud billing，沒有免費 API 額度；費用由你的 Google 帳戶控制。
+- **默書 OCR 和語音**：瀏覽器內執行，不產生 AI API 費用。
 
-- **前端**：可獨立部署到 GitHub Pages。
-- **資料庫與登入**：使用 Supabase。
-- **AI**：目前仍由原 Supabase Edge Functions 呼叫 Lovable AI Gateway，會需要有效的 `LOVABLE_API_KEY` 並可能消耗 Lovable AI 額度。若要完全停用 Lovable 收費，需要把 Edge Functions 改接其他 AI 供應商。
-- **Google 登入**：已改用 Supabase 標準 OAuth；Supabase 內必須啟用 Google provider，並把最終網址加入 allowed redirect URLs。
+所有 AI 請求只經 `generativelanguage.googleapis.com`，不再使用其他 AI gateway。`GEMINI_API_KEY` 只可以設為 Supabase Edge Function secret，不能放進前端程式碼、GitHub 或 Pages 分支。
 
 ## 本機執行
 
@@ -28,14 +29,14 @@ cp .env.example .env
 npm run dev
 ```
 
-編輯 `.env`，填入自己的 Supabase 設定：
+在 `.env` 填入自己 Supabase project 的公開設定：
 
 ```text
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-public-anon-or-publishable-key
 ```
 
-這裡只應放 Supabase 的公開 anon／publishable key。**不要放入 service-role key、Lovable API key 或其他私密伺服器密钥。** `.env` 已被 `.gitignore` 排除。
+這裡只應放 Supabase 的公開 anon／publishable key。`.env` 已被 `.gitignore` 排除。
 
 ## 測試與正式建置
 
@@ -47,41 +48,35 @@ npm run preview
 
 建置結果位於 `dist/`。網站使用 Hash Router，因此 GitHub Pages 的內部頁面重新整理不需要額外 rewrite 設定。
 
-## 推送到 GitHub
+## 獨立 Supabase 設定
 
-在 GitHub 建立一個空白 repository，然後在此目錄執行（先確認沒有把 `.env` 加入版本控制）：
+1. 建立自己的 Supabase project。
+2. 把 project reference 填入 `supabase/config.toml` 的 `project_id`。
+3. 執行 `supabase/migrations/` 內全部 migrations，建立功課及默書資料表。
+4. 在 Supabase Edge Function secrets 設定 `GEMINI_API_KEY`。
+5. 部署所有 functions：
 
 ```bash
-git init
-git add .
-git status
-git commit -m "Migrate Evelyn Eraser from Lovable"
-git branch -M main
-git remote add origin https://github.com/YOUR_NAME/YOUR_REPO.git
-git push -u origin main
+supabase functions deploy erase-handwriting
+supabase functions deploy extract-text
+supabase functions deploy check-homework
+supabase functions deploy rebuild-worksheet
+supabase functions deploy scan-optimize
+supabase functions deploy elevenlabs-tts
 ```
+
+`elevenlabs-tts` 是預留接口，目前默書播放使用瀏覽器語音，不需要設定 ElevenLabs。
+
+現有用戶的資料庫記錄和 Storage 檔案不包含在程式碼內，需要另外匯入及遷移。
+
+## Google 登入
+
+Supabase 內必須啟用 Google provider，並把本機及公開網址加入 allowed redirect URLs。OAuth callback 使用 `/#/auth`。
 
 ## GitHub Pages 部署
 
-目前部署使用 `gh-pages` 分支：先在本機透過 `.env` 執行 `npm run build`，再將 `dist/` 的靜態內容發布到該分支。這個方法不需要 GitHub Actions 或 workflow 權限。
+目前部署使用 `gh-pages` 分支：在本機透過 `.env` 執行 `npm run build`，再將 `dist/` 的靜態內容發布到該分支。這個方法不需要 GitHub Actions 或 workflow 權限。
 
-在 **Settings → Pages** 應選擇 **Deploy from branch**，分支為 `gh-pages`，目錄為 `/ (root)`。網址通常是 `https://YOUR_NAME.github.io/YOUR_REPO/`，以 GitHub Pages 顯示為準。
+在 **Settings → Pages** 選擇 **Deploy from branch**，分支為 `gh-pages`，目錄為 `/ (root)`。網址通常是 `https://YOUR_NAME.github.io/YOUR_REPO/`。
 
 只有 Supabase 的公開前端設定會在建置時放入靜態網站。伺服器私密 key 絕對不能加入前端程式碼或 Pages 分支。
-
-## Supabase 後端
-
-原始後端位於：
-
-```text
-supabase/functions/
-├── erase-handwriting/
-├── check-homework/
-├── extract-text/
-├── rebuild-worksheet/
-└── scan-optimize/
-```
-
-如要部署到你自己的 Supabase project，需要安裝 Supabase CLI、連結 project、執行 migrations，再部署 functions 和設定伺服器 secrets。`LOVABLE_API_KEY` 只能設為 Edge Function secret，不能放進 `.env` 或前端程式碼。
-
-資料庫備份與 Storage 檔案需要另外遷移；程式碼 ZIP 並不包含這些資料。

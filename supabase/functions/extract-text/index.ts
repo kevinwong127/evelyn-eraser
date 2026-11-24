@@ -1,45 +1,27 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { validateRequest } from "../_shared/validate-request.ts";
+import { GeminiError, GEMINI_TEXT_MODEL, extractGeminiText, generateGeminiContent, imagePart } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const validated = await validateRequest(req);
     if (validated instanceof Response) return validated;
-
     const { mimeType, pureBase64 } = validated;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
-    
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
+    const result = await generateGeminiContent({
+      model: GEMINI_TEXT_MODEL,
+      contents: [{
+        role: "user",
+        parts: [
           {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `You are an expert OCR and document layout extraction tool specializing in Chinese and English documents.
+            text: `You are an expert OCR and document layout extraction tool specializing in Chinese and English documents.
 
 TASK: Analyze this worksheet/document image and extract ALL PRINTED text content with high accuracy.
 
@@ -86,66 +68,32 @@ ADDITIONAL RULES:
 - TABLES: Any grid/boxed layout with rows and columns (including answer boxes, matching tables, forms, bordered boxes) MUST be type "table" with "rows": a 2D array of cell strings, one inner array per row, same column count per row (use "" for empty/answer cells, and repeat or leave "" for merged cells). Set "content" to a short caption like "表格" or the table title. Copy cell text verbatim.
 - Do NOT include the filename, watermarks, or page numbers
 - Return ONLY valid JSON, no markdown code blocks, no other text`,
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${pureBase64}`,
-                },
-              },
-            ],
           },
+          imagePart(mimeType, pureBase64),
         ],
-      }),
+      }],
+      generationConfig: { responseMimeType: "application/json" },
     });
 
-    if (!response.ok) {
-      console.error("AI error:", response.status);
-
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 403) {
-        let msg = "AI 使用上限已到，請工作區管理員提高 AI 額度上限。";
-        try { const j = await response.json(); if (j?.message) msg = j.message; else if (j?.error?.message) msg = j.error.message; } catch { /* ignore */ }
-        return new Response(JSON.stringify({ error: msg }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Usage limit reached. Please add credits." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      throw new Error(`AI error: ${response.status}`);
-    }
-
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content;
-
-    // Parse JSON from the response
-    let extractedData = null;
-    if (typeof content === "string") {
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
-      try {
-        extractedData = JSON.parse(jsonMatch[1]!.trim());
-      } catch (e) {
-        console.error("Failed to parse OCR JSON:", e);
-        extractedData = { title: "", sections: [{ type: "paragraph", content }] };
-      }
+    const content = extractGeminiText(result);
+    let extractedData;
+    try {
+      extractedData = JSON.parse(content);
+    } catch (error) {
+      console.error("Failed to parse OCR JSON:", error);
+      extractedData = { title: "", sections: [{ type: "paragraph", content }] };
     }
 
     return new Response(
       JSON.stringify({ extractedData }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (e) {
-    console.error("extract-text error:", e);
+  } catch (error) {
+    console.error("extract-text error:", error);
+    const status = error instanceof GeminiError ? error.status : 500;
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
