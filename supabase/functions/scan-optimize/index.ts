@@ -107,7 +107,7 @@ ${isColor ? `RULES:
 Output ONLY the processed image. No text response.`;
 }
 
-async function callAI(_apiKey: string, prompt: string, mimeType: string, pureBase64: string) {
+async function callAI(prompt: string, mimeType: string, pureBase64: string) {
   return generateGeminiContent({
     model: GEMINI_IMAGE_MODEL,
     contents: [{
@@ -144,21 +144,18 @@ serve(async (req) => {
     const isColor = extraFields?.colorMode === "color";
     const highQuality = extraFields?.highQuality === true;
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-
     let optimizedImageBase64: string | null = null;
 
     if (highQuality) {
       // Two-pass mode: geometry first, then cleanup
       const pass1Prompt = buildGeometryOnlyPrompt();
-      const pass1Result = await callAI(GEMINI_API_KEY, pass1Prompt, mimeType, pureBase64);
+      const pass1Result = await callAI(pass1Prompt, mimeType, pureBase64);
       const geometryImage = extractImageFromResult(pass1Result);
 
       if (geometryImage) {
         const { mimeType: m2, pureBase64: b2 } = parseDataUri(geometryImage);
         const pass2Prompt = buildCleanupPrompt(isColor);
-        const pass2Result = await callAI(GEMINI_API_KEY, pass2Prompt, m2, b2);
+        const pass2Result = await callAI(pass2Prompt, m2, b2);
         optimizedImageBase64 = extractImageFromResult(pass2Result);
         // Fallback to geometry-only result if cleanup fails
         if (!optimizedImageBase64) optimizedImageBase64 = geometryImage;
@@ -166,7 +163,7 @@ serve(async (req) => {
     } else {
       // Single-pass mode with enhanced prompt
       const prompt = buildGeometryPrompt(isColor);
-      const result = await callAI(GEMINI_API_KEY, prompt, mimeType, pureBase64);
+      const result = await callAI(prompt, mimeType, pureBase64);
       optimizedImageBase64 = extractImageFromResult(result);
     }
 
