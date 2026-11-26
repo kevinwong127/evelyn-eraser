@@ -1,5 +1,5 @@
 # Replace this with your own Supabase project reference before deploying.
-project_id = "your-supabase-project-ref"
+project_id = "pjvirpefdbvvhbhlvfby"
 
 [functions.erase-handwriting]
 verify_jwt = false

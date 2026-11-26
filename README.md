@@ -13,11 +13,11 @@
 
 - **前端**：GitHub Pages，使用公開 repository 時免費。
 - **資料庫、登入和 Edge Functions**：使用你自己的 Supabase project，按 Supabase 計劃及用量計算。
-- **文字 AI（功課批改和 OCR）**：直接呼叫 Gemini API，預設 `gemini-2.5-flash`。
-- **圖片 AI（清除、掃描和重建）**：直接呼叫 Gemini API，預設 `gemini-3-pro-image-preview`。圖像模型需要啟用 Google Cloud billing，沒有免費 API 額度；費用由你的 Google 帳戶控制。
+- **文字 AI（功課批改和 OCR）**：直接呼叫 Google Cloud Vertex AI，使用 `gemini-3.1-pro-preview`。
+- **圖片 AI（清除、掃描和重建）**：直接呼叫 Google Cloud Vertex AI，使用 `gemini-3.1-flash-image`。圖像功能需要啟用 Google Cloud billing，費用由你的 Google 帳戶控制。
 - **默書 OCR 和語音**：瀏覽器內執行，不產生 AI API 費用。
 
-所有 AI 請求只經 `generativelanguage.googleapis.com`，不再使用其他 AI gateway。`GEMINI_API_KEY` 只可以設為 Supabase Edge Function secret，不能放進前端程式碼、GitHub 或 Pages 分支。
+AI 請求經 `aiplatform.googleapis.com`，以專用 Google service account 驗證。`GOOGLE_SERVICE_ACCOUNT_JSON` 只可以設為 Supabase Edge Function secret，不能放進前端程式碼、GitHub 或 Pages 分支。
 
 ## 本機執行
 
@@ -53,7 +53,7 @@ npm run preview
 1. 建立自己的 Supabase project。
 2. 把 project reference 填入 `supabase/config.toml` 的 `project_id`。
 3. 執行 `supabase/migrations/` 內全部 migrations，建立功課及默書資料表。
-4. 在 Supabase Edge Function secrets 設定 `GEMINI_API_KEY`。
+4. 在 Supabase Edge Function secrets 設定 `GOOGLE_SERVICE_ACCOUNT_JSON`（內容為專用 service account 的完整 JSON）。
 5. 部署所有 functions：
 
 ```bash
