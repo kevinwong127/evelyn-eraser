@@ -181,6 +181,7 @@ function postProcessScanEffect(dataUrl: string): Promise<string> {
 }
 
 /** Call edge function with extended timeout via direct fetch */
+/** Call edge function with timeout and conservative retry for rate-limited AI requests. */
 async function invokeWithTimeout(fnName: string, body: any, timeoutMs = 120000) {
   // Use user session token if logged in, otherwise fall back to anon key (guest mode)
   let authToken = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -193,31 +194,43 @@ async function invokeWithTimeout(fnName: string, body: any, timeoutMs = 120000) 
     // Continue with anon key
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  
-  try {
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fnName}`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${authToken}`,
-        "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.error || `Request failed: ${resp.status}`);
+  let lastError: any;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${fnName}`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        const error: any = new Error(errData.error || `Request failed: ${resp.status}`);
+        error.status = resp.status;
+        throw error;
+      }
+
+      return await resp.json();
+    } catch (error: any) {
+      lastError = error;
+      // Only retry provider rate limits or temporary service overload.
+      if (![429, 503].includes(error.status) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 5000 * (attempt + 1)));
+    } finally {
+      clearTimeout(timer);
     }
-    
-    return await resp.json();
-  } finally {
-    clearTimeout(timer);
   }
+
+  throw lastError;
 }
 
 const QuickStart = () => {
@@ -450,7 +463,7 @@ const QuickStart = () => {
     }
   };
 
-  const CONCURRENCY = 3; // process up to 3 images in parallel
+  const CONCURRENCY = 1; // Sequential processing avoids image-model rate limits
 
   const handleProcessAll = async () => {
     const pending = itemsRef.current
