@@ -399,6 +399,7 @@ const QuickStart = () => {
       setItems((prev) =>
         prev.map((it) => (it.id === id ? { ...it, status: "error" as const, errorMessage: msg } : it))
       );
+      throw err;
     }
   };
 
@@ -460,10 +461,11 @@ const QuickStart = () => {
       setItems((prev) =>
         prev.map((it) => (it.id === id ? { ...it, status: "error" as const, errorMessage: msg } : it))
       );
+      throw err;
     }
   };
 
-  const CONCURRENCY = 1; // Sequential processing avoids image-model rate limits
+  const MAX_CONCURRENCY = 2;
 
   const handleProcessAll = async () => {
     const pending = itemsRef.current
@@ -471,18 +473,34 @@ const QuickStart = () => {
       .map((it) => it.id);
     if (pending.length === 0) return;
     const processFn = outputMode === "image" ? processOneImage : processOneText;
+    let concurrency = MAX_CONCURRENCY;
+    let index = 0;
 
-    // Process in batches of CONCURRENCY
-    for (let i = 0; i < pending.length; i += CONCURRENCY) {
-      const batch = pending.slice(i, i + CONCURRENCY);
-      await Promise.all(batch.map((id) => processFn(id)));
+    while (index < pending.length) {
+      const batchSize = Math.min(concurrency, pending.length - index);
+      const batch = pending.slice(index, index + batchSize);
+      const results = await Promise.allSettled(batch.map((id) => processFn(id)));
+      const hitRateLimit = results.some((result) =>
+        result.status === "rejected" && [429, 503].includes(result.reason?.status)
+      );
+
+      if (hitRateLimit && concurrency > 1) {
+        concurrency = 1;
+        toast({ title: "API 暫時繁忙，已自動減慢至逐頁處理" });
+      } else if (!hitRateLimit) {
+        concurrency = MAX_CONCURRENCY;
+      }
+
+      index += batchSize;
     }
     toast({ title: outputMode === "image" ? "✨ 批量清除完成！" : "✨ 文字提取完成！" });
   };
 
   const handleRetry = (id: string) => {
     const processFn = outputMode === "image" ? processOneImage : processOneText;
-    processFn(id);
+    void processFn(id).catch(() => {
+      // The failed item already contains the error message for the retry UI.
+    });
   };
 
   const handleRemove = (id: string) => {
